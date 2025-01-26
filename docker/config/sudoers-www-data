@@ -1,0 +1,1 @@
+www-data ALL=(ALL) NOPASSWD: /usr/bin/docker exec ctf-vpn cat /etc/openvpn/client/client.conf

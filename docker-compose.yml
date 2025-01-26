@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  webmaster:
+    build:
+      context: .
+      dockerfile: docker/webmaster/Dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/config/sudoers-www-data:/etc/sudoers.d/www-data:ro
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html
+    networks:
+      - ctf_network
+    depends_on:
+      - vpn
+
+  vpn:
+    build:
+      context: ./docker/vpn
+      dockerfile: Dockerfile
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    privileged: true
+    ports:
+      - "1194:1194/udp"
+    volumes:
+      - ./docker/vpn/config:/etc/openvpn
+      - ./docker/vpn/scripts:/usr/local/bin
+    networks:
+      - ctf_network
+
+  binaryninja:
+    build:
+      context: ./docker/binaryninja
+      dockerfile: Dockerfile
+    ports:
+      - "2222:22"
+    volumes:
+      - ./docker/binaryninja/challenge:/home/ctf/challenge
+    networks:
+      - ctf_network
+    depends_on:
+      - vpn
+
+networks:
+  ctf_network:
+    driver: bridge

@@ -1,0 +1,10 @@
+set_var EASYRSA_REQ_COUNTRY     "FR"
+set_var EASYRSA_REQ_PROVINCE    "IDF"
+set_var EASYRSA_REQ_CITY        "Paris"
+set_var EASYRSA_REQ_ORG         "CTF Platform"
+set_var EASYRSA_REQ_EMAIL       "admin@ctf-platform.local"
+set_var EASYRSA_REQ_OU          "CTF VPN"
+set_var EASYRSA_KEY_SIZE        2048
+set_var EASYRSA_ALGO            rsa
+set_var EASYRSA_CA_EXPIRE       3650
+set_var EASYRSA_CERT_EXPIRE     3650

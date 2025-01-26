@@ -1,0 +1,32 @@
+# Configuration files
+config/database.php
+*.env
+
+# Logs and databases
+*.log
+*.sqlite
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Dependency directories
+vendor/
+node_modules/
+
+# Cache and session files
+*.cache
+sessions/
+
+.gitignore
