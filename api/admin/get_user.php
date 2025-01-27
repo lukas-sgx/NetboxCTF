@@ -22,41 +22,32 @@ try {
     $db = $database->getConnection();
     
     // Préparer et exécuter la requête
-    $query = "SELECT r.*, m.name as machine_name 
-              FROM rooms r 
-              LEFT JOIN machines m ON r.machine_id = m.id 
-              WHERE r.id = :id";
-              
+    $query = "SELECT id, username, email, role, created_at, last_login, is_active 
+              FROM users 
+              WHERE id = :id";
     $stmt = $db->prepare($query);
-    $stmt->bindValue(':id', intval($_GET['id']), PDO::PARAM_INT);
+    $stmt->execute(['id' => $_GET['id']]);
     
-    if (!$stmt->execute()) {
-        throw new Exception("Erreur lors de l'exécution de la requête");
-    }
+    // Récupérer l'utilisateur
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Récupérer la salle
-    $room = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if (!$room) {
+    if (!$user) {
         http_response_code(404);
-        echo json_encode(['success' => false, 'error' => 'Salle non trouvée']);
+        echo json_encode(['success' => false, 'error' => 'Utilisateur non trouvé']);
         exit();
     }
     
-    // S'assurer que is_active est un booléen
-    $room['is_active'] = (bool)$room['is_active'];
+    // Ne pas renvoyer le mot de passe
+    unset($user['password']);
     
     // Renvoyer les données
     echo json_encode([
         'success' => true,
-        'room' => $room
+        'user' => $user
     ]);
 
-} catch (Exception $e) {
+} catch (PDOException $e) {
     error_log($e->getMessage());
     http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Erreur serveur'
-    ]);
+    echo json_encode(['success' => false, 'error' => 'Erreur serveur']);
 }

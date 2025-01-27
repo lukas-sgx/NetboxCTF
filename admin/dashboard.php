@@ -79,19 +79,19 @@ define('ADMIN_ACCESS', true);
                         <div class="col-md-4">
                             <div class="terminal-stats">
                                 <h3 id="totalUsers">-</h3>
-                                <p>Total Users</p>
+                                <p id="totalUsersLabel">Active Machines</p>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="terminal-stats">
-                                <h3 id="activeRooms">-</h3>
-                                <p>Active Rooms</p>
+                                <h3 id="activeUsers">-</h3>
+                                <p id="activeUsersLabel">Active Users</p>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="terminal-stats">
-                                <h3 id="totalMachines">-</h3>
-                                <p>Total Machines</p>
+                                <h3 id="totalRooms">-</h3>
+                                <p id="totalRoomsLabel">Active Rooms</p>
                             </div>
                         </div>
                     </div>
@@ -127,6 +127,7 @@ define('ADMIN_ACCESS', true);
                             </thead>
                             <tbody></tbody>
                         </table>
+                        <div class="pagination-container"></div>
                     </div>
                 </div>
             </div>
@@ -157,6 +158,7 @@ define('ADMIN_ACCESS', true);
                             </thead>
                             <tbody></tbody>
                         </table>
+                        <div class="pagination-container"></div>
                     </div>
                 </div>
             </div>
@@ -187,6 +189,7 @@ define('ADMIN_ACCESS', true);
                             </thead>
                             <tbody></tbody>
                         </table>
+                        <div class="pagination-container"></div>
                     </div>
                 </div>
             </div>
@@ -232,7 +235,7 @@ define('ADMIN_ACCESS', true);
     <?php include 'includes/modals.php'; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="../assets/js/admin.js"></script>
 </body>
 </html>

@@ -189,7 +189,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         </table>
                         <div class="pagination-container"></div>
                     </div>
-                    <button class="btn btn-outline-primary mt-3" onclick="blockIP()">
+                    <button class="btn btn-outline-primary mt-3" data-bs-toggle="modal" data-bs-target="#blockIPModal">
                         <i class="bi bi-plus-circle"></i> Bloquer une IP
                     </button>
                 </div>
@@ -270,6 +270,21 @@ async function unblockIp(ip) {
     } catch (error) {
         console.error('Error:', error);
         showNotification(error.message, 'error');
+    }
+}
+
+function blockIP(ip = '', reason = '') {
+    // Pré-remplir les champs du modal si des valeurs sont fournies
+    document.getElementById('ipAddress').value = ip;
+    document.getElementById('reason').value = reason;
+    
+    // Afficher le modal en utilisant l'API Bootstrap 5
+    const blockIPModal = document.getElementById('blockIPModal')
+    if (blockIPModal) {
+        const modal = new bootstrap.Modal(blockIPModal);
+        modal.show();
+    } else {
+        console.error("Modal element not found");
     }
 }
 </script>

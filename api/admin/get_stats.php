@@ -14,31 +14,31 @@ try {
     $database = new Database();
     $db = $database->getConnection();
 
-    // Obtenir le nombre total d'utilisateurs actifs
-    $userQuery = "SELECT COUNT(*) as total FROM users WHERE is_active = 1";
-    $userStmt = $db->prepare($userQuery);
-    $userStmt->execute();
-    $totalUsers = $userStmt->fetch(PDO::FETCH_ASSOC)['total'];
+    // Obtenir le nombre de machines actives
+    $activeMachinesQuery = "SELECT COUNT(*) as total FROM machines WHERE is_active = 1";
+    $activeMachinesStmt = $db->prepare($activeMachinesQuery);
+    $activeMachinesStmt->execute();
+    $activeMachines = $activeMachinesStmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    // Obtenir le nombre d'utilisateurs actifs
+    $activeUsersQuery = "SELECT COUNT(*) as total FROM users WHERE is_active = 1";
+    $activeUsersStmt = $db->prepare($activeUsersQuery);
+    $activeUsersStmt->execute();
+    $activeUsers = $activeUsersStmt->fetch(PDO::FETCH_ASSOC)['total'];
 
     // Obtenir le nombre de salles actives
-    $roomQuery = "SELECT COUNT(*) as total FROM rooms WHERE is_active = 1";
-    $roomStmt = $db->prepare($roomQuery);
-    $roomStmt->execute();
-    $activeRooms = $roomStmt->fetch(PDO::FETCH_ASSOC)['total'];
-
-    // Obtenir le nombre total de machines actives
-    $machineQuery = "SELECT COUNT(*) as total FROM machines WHERE is_active = 1";
-    $machineStmt = $db->prepare($machineQuery);
-    $machineStmt->execute();
-    $totalMachines = $machineStmt->fetch(PDO::FETCH_ASSOC)['total'];
+    $activeRoomsQuery = "SELECT COUNT(*) as total FROM rooms WHERE is_active = 1";
+    $activeRoomsStmt = $db->prepare($activeRoomsQuery);
+    $activeRoomsStmt->execute();
+    $activeRooms = $activeRoomsStmt->fetch(PDO::FETCH_ASSOC)['total'];
 
     // Retourner les statistiques
     echo json_encode([
         'success' => true,
         'stats' => [
-            'totalUsers' => (int)$totalUsers,
-            'activeRooms' => (int)$activeRooms,
-            'totalMachines' => (int)$totalMachines
+            'active_machines' => (int)$activeMachines,
+            'active_users' => (int)$activeUsers,
+            'active_rooms' => (int)$activeRooms
         ]
     ]);
 

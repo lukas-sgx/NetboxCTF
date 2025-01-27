@@ -26,9 +26,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Initialisation des modales
 function initializeModals() {
-    const modalElements = document.querySelectorAll('.modal');
-    modalElements.forEach(modalElement => {
-        modals[modalElement.id] = new bootstrap.Modal(modalElement);
+    // Initialiser toutes les modales Bootstrap
+    document.querySelectorAll('.modal').forEach(modalEl => {
+        new bootstrap.Modal(modalEl, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
     });
 }
 
@@ -43,101 +47,62 @@ function refreshTables() {
 
 // Initialiser les tableaux
 function initializeTables() {
-    refreshTables();
+    loadUsers();
+    loadRooms();
+    loadMachines();
+    loadDashboardData();
+    loadBlockedIPs();
+    loadSecurityEvents();
 }
 
 // Charger les données du tableau de bord
 function loadDashboardData() {
-    fetch('../api/admin/get_stats.php', {
+    console.log('Loading dashboard data...');
+    fetch('/api/admin/get_stats.php', {
         headers: {
             'Accept': 'application/json'
         },
         credentials: 'same-origin'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
     .then(data => {
+        console.log('Received stats:', data);
         if (data.success) {
-            updateStatElement('totalUsers', data.stats.totalUsers);
-            updateStatElement('activeRooms', data.stats.activeRooms);
-            updateStatElement('totalMachines', data.stats.totalMachines);
+            // Mise à jour des compteurs et labels pour les machines
+            const activeMachinesEl = document.getElementById('totalUsers');
+            const activeMachinesLabel = document.getElementById('totalUsersLabel');
+            
+            // Mise à jour des compteurs et labels pour les utilisateurs actifs
+            const activeUsersEl = document.getElementById('activeUsers');
+            const activeUsersLabel = document.getElementById('activeUsersLabel');
+            
+            // Mise à jour des compteurs et labels pour les salles
+            const activeRoomsEl = document.getElementById('totalRooms');
+            const activeRoomsLabel = document.getElementById('totalRoomsLabel');
+            
+            if (activeMachinesEl) activeMachinesEl.textContent = data.stats.active_machines || 0;
+            if (activeMachinesLabel) activeMachinesLabel.textContent = 'Active Machines';
+            
+            if (activeUsersEl) activeUsersEl.textContent = data.stats.active_users || 0;
+            if (activeUsersLabel) activeUsersLabel.textContent = 'Active Users';
+            
+            if (activeRoomsEl) activeRoomsEl.textContent = data.stats.active_rooms || 0;
+            if (activeRoomsLabel) activeRoomsLabel.textContent = 'Active Rooms';
         }
     })
     .catch(error => {
         console.error('Error loading dashboard data:', error);
-        showNotification('Erreur lors du chargement des statistiques', 'danger');
     });
-
-    // Charger l'état de la maintenance
-    fetch('../api/admin/toggle_maintenance.php', {
-        method: 'GET',
-        headers: {
-            'Accept': 'application/json'
-        },
-        credentials: 'same-origin'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success && data.config) {
-            const maintenanceSwitch = document.getElementById('maintenanceSwitch');
-            const maintenanceMessage = document.getElementById('maintenance_message');
-            const allowedIps = document.getElementById('allowed_ips');
-            
-            if (maintenanceSwitch) {
-                maintenanceSwitch.checked = data.config.enabled;
-                // Mettre à jour le label de statut
-                const statusLabel = document.querySelector('.status-label');
-                if (statusLabel) {
-                    statusLabel.textContent = data.config.enabled ? 'Maintenance activée' : 'Maintenance désactivée';
-                    statusLabel.style.color = data.config.enabled ? '#00ff9d' : '#dc3545';
-                }
-            }
-            if (maintenanceMessage) {
-                maintenanceMessage.value = data.config.message || '';
-            }
-            if (allowedIps && data.config.allowed_ips) {
-                allowedIps.value = data.config.allowed_ips.join('\n');
-            }
-        }
-    })
-    .catch(error => {
-        console.error('Error loading maintenance status:', error);
-        showNotification('Erreur lors du chargement du statut de maintenance', 'danger');
-    });
-}
-
-// Mettre à jour un élément statistique avec animation
-function updateStatElement(elementId, value) {
-    const element = document.getElementById(elementId);
-    if (!element) return;
-
-    const current = parseInt(element.textContent) || 0;
-    const target = parseInt(value) || 0;
-    
-    if (current === target) return;
-
-    const duration = 1000;
-    const stepTime = 50;
-    const steps = duration / stepTime;
-    const increment = (target - current) / steps;
-    let currentValue = current;
-    
-    const updateValue = () => {
-        currentValue += increment;
-        if ((increment > 0 && currentValue >= target) || 
-            (increment < 0 && currentValue <= target)) {
-            element.textContent = target;
-        } else {
-            element.textContent = Math.round(currentValue);
-            requestAnimationFrame(updateValue);
-        }
-    };
-
-    requestAnimationFrame(updateValue);
 }
 
 // Charger les utilisateurs
 function loadUsers() {
-    fetch(`../api/admin/get_users.php?page=${currentPage.users}`, {
+    fetch(`/api/admin/get_users.php?page=${currentPage.users}`, {
         headers: {
             'Accept': 'application/json'
         },
@@ -147,105 +112,110 @@ function loadUsers() {
     .then(data => {
         if (data.success) {
             const tbody = document.querySelector('#usersTable tbody');
-            const container = document.querySelector('#usersTable').closest('.terminal-body');
-            if (!tbody || !container) return;
-
+            if (!tbody) {
+                console.error('Users table body not found');
+                return;
+            }
             tbody.innerHTML = '';
+            
             data.users.forEach(user => {
-                const roleColors = {
-                    'admin': 'danger',
-                    'user': 'info'
-                };
-                const roleColor = roleColors[user.is_admin ? 'admin' : 'user'];
-                
-                tbody.innerHTML += `
-                    <tr data-user-id="${user.id}">
-                        <td>${user.id}</td>
-                        <td data-field="username">${user.username}</td>
-                        <td data-field="email">${user.email}</td>
-                        <td data-field="role" data-role="${user.is_admin ? 'admin' : 'user'}">
-                            <span class="badge bg-${roleColor}">
-                                ${user.is_admin ? 'Admin' : 'User'}
-                            </span>
-                        </td>
-                        <td data-field="is_active" data-active="${user.is_active ? '1' : '0'}">
-                            <span class="badge bg-${user.is_active ? 'success' : 'danger'}">
-                                ${user.is_active ? 'Actif' : 'Inactif'}
-                            </span>
-                        </td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                <button class="btn btn-sm btn-primary" onclick="editUser(${user.id})">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="deleteUser(${user.id})">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${user.id}</td>
+                    <td>${user.username}</td>
+                    <td>${user.email}</td>
+                    <td>${user.role}</td>
+                    <td>
+                        <span class="badge ${user.is_active ? 'bg-success' : 'bg-danger'}">
+                            ${user.is_active ? 'Actif' : 'Inactif'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-2" onclick="editUser(${user.id})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${user.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
                 `;
+                tbody.appendChild(tr);
             });
-
-            // Mettre à jour la pagination
-            updatePagination(container, 'users', data.pagination.total_pages);
+            
+            // Mise à jour de la pagination
+            if (data.pagination) {
+                const container = document.querySelector('#usersTable').closest('.table-responsive').querySelector('.pagination-container');
+                updatePagination(container, 'users', data.pagination.total_pages);
+            }
         }
     })
-    .catch(error => console.error('Error loading users:', error));
+    .catch(error => {
+        console.error('Error loading users:', error);
+    });
 }
 
 // Charger les salles
 function loadRooms() {
-    fetch(`../api/admin/get_rooms.php?page=${currentPage.rooms}`, {
+    fetch(`/api/admin/get_rooms.php?page=${currentPage.rooms}`, {
         headers: {
             'Accept': 'application/json'
         },
         credentials: 'same-origin'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             const tbody = document.querySelector('#roomsTable tbody');
-            const container = document.querySelector('#roomsTable').closest('.terminal-body');
-            if (!tbody || !container) return;
-
+            if (!tbody) {
+                console.error('Rooms table body not found');
+                return;
+            }
             tbody.innerHTML = '';
+            
             data.rooms.forEach(room => {
-                tbody.innerHTML += `
-                    <tr data-room-id="${room.id}">
-                        <td>${room.id}</td>
-                        <td data-field="name">${room.name}</td>
-                        <td data-field="machine_name">${room.machine_name}</td>
-                        <td>${room.active_users}/${room.max_users}</td>
-                        <td data-field="is_active" data-active="${room.is_active ? '1' : '0'}">
-                            <span class="badge bg-${room.is_active ? 'success' : 'danger'}">
-                                ${room.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                        </td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                <button class="btn btn-sm btn-primary" onclick="editRoom(${room.id})">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="deleteRoom(${room.id})">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${room.id}</td>
+                    <td>${room.name}</td>
+                    <td>${room.machine_name || 'Aucune'}</td>
+                    <td>${room.active_users} / ${room.max_users}</td>
+                    <td>
+                        <span class="badge ${room.is_active ? 'bg-success' : 'bg-danger'}">
+                            ${room.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-2" onclick="editRoom(${room.id})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteRoom(${room.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
                 `;
+                tbody.appendChild(tr);
             });
-
-            // Mettre à jour la pagination
-            updatePagination(container, 'rooms', data.pagination.total_pages);
+            
+            // Mise à jour de la pagination
+            if (data.pagination) {
+                const container = document.querySelector('#roomsTable').closest('.table-responsive').querySelector('.pagination-container');
+                updatePagination(container, 'rooms', data.pagination.total_pages);
+            }
         }
     })
-    .catch(error => console.error('Error loading rooms:', error));
+    .catch(error => {
+        console.error('Error loading rooms:', error);
+    });
 }
 
 // Charger les machines
 function loadMachines() {
-    fetch(`../api/admin/get_machines.php?page=${currentPage.machines}`, {
+    fetch(`/api/admin/get_machines.php?page=${currentPage.machines}`, {
         headers: {
             'Accept': 'application/json'
         },
@@ -255,51 +225,51 @@ function loadMachines() {
     .then(data => {
         if (data.success) {
             const tbody = document.querySelector('#machinesTable tbody');
-            const container = document.querySelector('#machinesTable').closest('.terminal-body');
-            if (!tbody || !container) return;
-
+            if (!tbody) {
+                console.error('Machines table body not found');
+                return;
+            }
             tbody.innerHTML = '';
+            
             data.machines.forEach(machine => {
-                tbody.innerHTML += `
-                    <tr data-machine-id="${machine.id}">
-                        <td>${machine.id}</td>
-                        <td data-field="name">${machine.name}</td>
-                        <td data-field="docker_image">${machine.docker_image}</td>
-                        <td>
-                            <div class="d-flex flex-column">
-                                <small>CPU: ${machine.cpu_limit} cores</small>
-                                <small>RAM: ${machine.memory_limit} MB</small>
-                            </div>
-                        </td>
-                        <td data-field="is_active" data-active="${machine.is_active ? '1' : '0'}">
-                            <span class="badge bg-${machine.is_active ? 'success' : 'danger'}">
-                                ${machine.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                        </td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                <button class="btn btn-sm btn-primary" onclick="editMachine(${machine.id})">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="deleteMachine(${machine.id})">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${machine.id}</td>
+                    <td>${machine.name}</td>
+                    <td>${machine.docker_image}</td>
+                    <td>CPU: ${machine.cpu_limit || '0'}, RAM: ${machine.ram_limit || '0'} MB</td>
+                    <td>
+                        <span class="badge ${machine.is_active ? 'bg-success' : 'bg-danger'}">
+                            ${machine.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-2" onclick="editMachine(${machine.id})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteMachine(${machine.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
                 `;
+                tbody.appendChild(tr);
             });
-
-            // Mettre à jour la pagination
-            updatePagination(container, 'machines', data.pagination.total_pages);
+            
+            // Mise à jour de la pagination
+            if (data.pagination) {
+                const container = document.querySelector('#machinesTable').closest('.table-responsive').querySelector('.pagination-container');
+                updatePagination(container, 'machines', data.pagination.total_pages);
+            }
         }
     })
-    .catch(error => console.error('Error loading machines:', error));
+    .catch(error => {
+        console.error('Error loading machines:', error);
+    });
 }
 
 // Charger les IPs bloquées
 function loadBlockedIPs() {
-    fetch(`../api/admin/get_blocked_ips.php?page=${currentPage.blockedIPs}`, {
+    fetch('/api/admin/get_blocked_ips.php?page=${currentPage.blockedIPs}', {
         headers: {
             'Accept': 'application/json'
         },
@@ -336,7 +306,7 @@ function loadBlockedIPs() {
 
 // Charger les événements de sécurité
 function loadSecurityEvents() {
-    fetch(`../api/admin/get_security_events.php?page=${currentPage.securityEvents}`, {
+    fetch('/api/admin/get_security_events.php?page=${currentPage.securityEvents}', {
         headers: {
             'Accept': 'application/json'
         },
@@ -375,6 +345,8 @@ function loadSecurityEvents() {
 
 // Fonction pour mettre à jour la pagination
 function updatePagination(container, type, totalPages) {
+    if (!container) return;
+    
     let paginationHtml = '';
     if (totalPages > 1) {
         paginationHtml = `
@@ -382,7 +354,7 @@ function updatePagination(container, type, totalPages) {
                 <nav>
                     <ul class="pagination">
                         <li class="page-item ${currentPage[type] === 1 ? 'disabled' : ''}">
-                            <a class="page-link" href="#" onclick="changePage('${type}', ${currentPage[type] - 1})">
+                            <a class="page-link" href="#" onclick="event.preventDefault(); changePage('${type}', ${currentPage[type] - 1}); return false;">
                                 <i class="bi bi-chevron-left"></i>
                             </a>
                         </li>
@@ -391,14 +363,14 @@ function updatePagination(container, type, totalPages) {
         for (let i = 1; i <= totalPages; i++) {
             paginationHtml += `
                 <li class="page-item ${currentPage[type] === i ? 'active' : ''}">
-                    <a class="page-link" href="#" onclick="changePage('${type}', ${i})">${i}</a>
+                    <a class="page-link" href="#" onclick="event.preventDefault(); changePage('${type}', ${i}); return false;">${i}</a>
                 </li>
             `;
         }
 
         paginationHtml += `
                         <li class="page-item ${currentPage[type] === totalPages ? 'disabled' : ''}">
-                            <a class="page-link" href="#" onclick="changePage('${type}', ${currentPage[type] + 1})">
+                            <a class="page-link" href="#" onclick="event.preventDefault(); changePage('${type}', ${currentPage[type] + 1}); return false;">
                                 <i class="bi bi-chevron-right"></i>
                             </a>
                         </li>
@@ -408,14 +380,7 @@ function updatePagination(container, type, totalPages) {
         `;
     }
 
-    // Mettre à jour ou créer l'élément de pagination
-    let paginationElement = container.querySelector('.pagination-container');
-    if (!paginationElement) {
-        paginationElement = document.createElement('div');
-        paginationElement.className = 'pagination-container';
-        container.appendChild(paginationElement);
-    }
-    paginationElement.innerHTML = paginationHtml;
+    container.innerHTML = paginationHtml;
 }
 
 // Fonction pour changer de page
@@ -487,9 +452,9 @@ function setupEventListeners() {
     }
 
     // Formulaires d'ajout
-    setupFormListener('addUserForm', '../api/admin/add_user.php', loadUsers);
-    setupFormListener('addRoomForm', '../api/admin/add_room.php', loadRooms);
-    setupFormListener('addMachineForm', '../api/admin/add_machine.php', loadMachines);
+    setupFormListener('addUserForm', '/api/admin/add_user.php', loadUsers);
+    setupFormListener('addRoomForm', '/api/admin/add_room.php', loadRooms);
+    setupFormListener('addMachineForm', '/api/admin/add_machine.php', loadMachines);
 
     // Gestion du mode maintenance
     const maintenanceSwitch = document.getElementById('maintenanceSwitch');
@@ -501,7 +466,7 @@ function setupEventListeners() {
                 .map(ip => ip.trim())
                 .filter(ip => ip);
 
-            fetch('../api/admin/toggle_maintenance.php', {
+            fetch('/api/admin/toggle_maintenance.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -542,7 +507,7 @@ function setupEventListeners() {
 
     // Fonction pour charger l'état de la maintenance
     function loadMaintenanceStatus() {
-        fetch('../api/admin/get_maintenance.php', {
+        fetch('/api/admin/get_maintenance.php', {
             headers: {
                 'Accept': 'application/json'
             },
@@ -608,7 +573,7 @@ function setupEventListeners() {
                 }
             }
 
-            fetch('../api/admin/toggle_maintenance.php', {
+            fetch('/api/admin/toggle_maintenance.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -658,7 +623,7 @@ function addUser() {
         };
 
         try {
-            const response = await fetch('../api/admin/add_user.php', {
+            const response = await fetch('/api/admin/add_user.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -738,406 +703,523 @@ function setupFormListener(formId, endpoint, reloadFunction) {
 
 // Fonction pour éditer un utilisateur
 function editUser(userId) {
-    const row = document.querySelector(`tr[data-user-id="${userId}"]`);
-    if (!row) {
-        console.error('User row not found');
-        return;
-    }
-
-    const userData = {
-        id: userId,
-        username: row.querySelector('[data-field="username"]')?.textContent || '',
-        email: row.querySelector('[data-field="email"]')?.textContent || '',
-        role: row.querySelector('[data-field="role"]')?.getAttribute('data-role') || 'user',
-        is_active: row.querySelector('[data-field="is_active"]')?.getAttribute('data-active') === '1'
-    };
-
-    const modal = modals['editUserModal'];
-    if (!modal) {
-        console.error('Edit user modal not found');
-        return;
-    }
-
-    const form = document.getElementById('editUserForm');
-    if (!form) {
-        console.error('Edit user form not found');
-        return;
-    }
-
-    form.reset();
-    
-    // Remplir le formulaire
-    Object.keys(userData).forEach(key => {
-        const input = form.querySelector(`[name="${key}"]`);
-        if (input) {
-            if (input.type === 'checkbox') {
-                input.checked = userData[key];
-            } else {
-                input.value = userData[key];
-            }
-        }
-    });
-
-    // Gérer la soumission
-    form.onsubmit = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = {
-            id: userId,
-            username: formData.get('username'),
-            email: formData.get('email'),
-            role: formData.get('role'),
-            is_active: formData.get('is_active') === 'on'
-        };
-
-        try {
-            const response = await fetch('../api/admin/update_user.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                showNotification('Utilisateur mis à jour avec succès', 'success');
-                modal.hide();
-                loadUsers();
-            } else {
-                showNotification(result.error || 'Erreur lors de la mise à jour', 'danger');
-            }
-        } catch (error) {
-            console.error('Error updating user:', error);
-            showNotification('Erreur lors de la mise à jour', 'danger');
-        }
-    };
-
-    modal.show();
-}
-
-// Fonction pour éditer une salle
-function editRoom(roomId) {
-    console.log('editRoom called with id:', roomId);
-    fetch(`../api/admin/get_room.php?id=${roomId}`, {
+    // Récupérer les données de l'utilisateur depuis l'API
+    fetch(`/api/admin/get_user.php?id=${userId}`, {
         headers: {
             'Accept': 'application/json'
         },
         credentials: 'same-origin'
     })
     .then(response => {
-        console.log('API Response:', response);
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
         return response.json();
     })
     .then(data => {
-        console.log('API Data:', data);
         if (data.success) {
-            const room = data.room;
-            console.log('Room data:', room); // Debug log
-            const modal = document.getElementById('editRoomModal');
-            if (!modal) return;
-
+            const user = data.user;
+            
             // Remplir les champs du formulaire
-            modal.querySelector('input[name="room_id"]').value = room.id;
-            modal.querySelector('input[name="name"]').value = room.name;
-            modal.querySelector('input[name="max_users"]').value = room.max_users;
+            document.getElementById('editUserId').value = user.id;
+            document.getElementById('editUsername').value = user.username;
+            document.getElementById('editEmail').value = user.email;
+            document.getElementById('editRole').value = user.role;
             
-            // Remplir la description
-            const descriptionField = document.getElementById('edit_room_description');
-            if (descriptionField && room.description) {
-                console.log('Setting description:', room.description);
-                descriptionField.textContent = room.description;
-                descriptionField.value = room.description;
-            } else {
-                console.log('Description field or value missing:', { field: !!descriptionField, description: room.description });
-            }
+            // Gérer correctement la case à cocher is_active
+            const isActive = user.is_active === '1' || user.is_active === 1 || user.is_active === true;
+            document.getElementById('editUserActive').checked = isActive;
             
-            // Charger la liste des machines disponibles
-            fetch('../api/admin/get_machines.php', {
-                headers: {
-                    'Accept': 'application/json'
-                },
-                credentials: 'same-origin'
-            })
-            .then(response => response.json())
-            .then(machineData => {
-                if (machineData.success) {
-                    const machineSelect = modal.querySelector('select[name="machine_id"]');
-                    machineSelect.innerHTML = '';
-                    
-                    machineData.machines.forEach(machine => {
-                        if (machine.is_active) {
-                            const option = document.createElement('option');
-                            option.value = machine.id;
-                            option.textContent = machine.name;
-                            if (machine.id === room.machine_id) {
-                                option.selected = true;
-                            }
-                            machineSelect.appendChild(option);
-                        }
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('Error loading machines:', error);
-                showNotification('Erreur lors du chargement des machines', 'danger');
-            });
-
-            // Mettre à jour les autres champs
-            const activeSwitch = modal.querySelector('input[name="is_active"]');
-            if (activeSwitch) {
-                activeSwitch.checked = room.is_active;
-            }
-
-            // Configurer la soumission du formulaire
-            const form = modal.querySelector('#editRoomForm');
-            form.onsubmit = async (e) => {
-                e.preventDefault(); // Empêcher la redirection
-
-                const formData = new FormData(form);
-                const roomData = {
-                    id: formData.get('room_id'),
-                    name: formData.get('name'),
-                    description: formData.get('description'),
-                    machine_id: formData.get('machine_id'),
-                    max_users: formData.get('max_users'),
-                    is_active: formData.get('is_active') === 'on'
-                };
-
-                try {
-                    const response = await fetch('../api/admin/update_room.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(roomData)
-                    });
-
-                    const result = await response.json();
-                    if (result.success) {
-                        showNotification('Salle mise à jour avec succès', 'success');
-                        const modalInstance = bootstrap.Modal.getInstance(modal);
-                        modalInstance.hide();
-                        loadRooms(); // Recharger la liste des salles
-                    } else {
-                        showNotification(result.error || 'Erreur lors de la mise à jour', 'danger');
-                    }
-                } catch (error) {
-                    console.error('Error updating room:', error);
-                    showNotification('Erreur lors de la mise à jour de la salle', 'danger');
-                }
-            };
-
             // Afficher le modal
-            const modalInstance = bootstrap.Modal.getInstance(modal);
-            modalInstance.show();
+            const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+            modal.show();
         } else {
-            showNotification('Erreur lors du chargement de la salle', 'danger');
+            showNotification('Erreur lors de la récupération des données', 'error');
         }
     })
     .catch(error => {
-        console.error('Error editing room:', error);
-        showNotification('Erreur lors de l\'édition de la salle', 'danger');
+        console.error('Error:', error);
+        showNotification('Erreur lors de la récupération des données', 'error');
     });
 }
 
-// Fonction pour ajouter une salle
-function addRoom() {
-    const modal = document.getElementById('addRoomModal');
-    if (!modal) return;
+// Fonction pour mettre à jour un utilisateur
+function updateUser() {
+    const userId = document.getElementById('editUserId').value;
+    const username = document.getElementById('editUsername').value;
+    const email = document.getElementById('editEmail').value;
+    const role = document.getElementById('editRole').value;
+    const isActive = document.getElementById('editUserActive').checked;
 
-    // Charger la liste des machines disponibles
-    fetch('../api/admin/get_machines.php', {
+    const userData = {
+        id: userId,
+        username: username,
+        email: email,
+        role: role,
+        is_active: isActive
+    };
+
+    fetch('/api/admin/update_user.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(userData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Utilisateur mis à jour avec succès');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editUserModal'));
+            modal.hide();
+            loadUsers(); // Recharger la liste des utilisateurs
+        } else {
+            showNotification(data.message || 'Erreur lors de la mise à jour', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Erreur lors de la mise à jour', 'error');
+    });
+}
+
+// Fonction pour éditer une salle
+function editRoom(roomId) {
+    let roomData = null;
+    const editRoomModal = document.getElementById('editRoomModal');
+    const modal = new bootstrap.Modal(editRoomModal);
+
+    fetch(`/api/admin/get_room.php?id=${roomId}`, {
         headers: {
             'Accept': 'application/json'
         },
         credentials: 'same-origin'
     })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            roomData = data.room;
+            
+            // Remplir les champs du formulaire avec les IDs corrects
+            document.querySelector('#editRoomForm input[name="room_id"]').value = roomData.id;
+            document.getElementById('edit_room_name').value = roomData.name;
+            document.getElementById('edit_room_description').value = roomData.description || '';
+            document.getElementById('edit_room_max_users').value = roomData.max_users;
+            document.getElementById('edit_room_active').checked = roomData.is_active === '1' || roomData.is_active === true;
+            
+            // Charger les machines disponibles
+            return fetch('/api/admin/get_machines.php');
+        }
+        throw new Error('Failed to get room data');
+    })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            const machineSelect = modal.querySelector('select[name="machine_id"]');
+            const machineSelect = document.getElementById('edit_room_machine');
             machineSelect.innerHTML = '';
             
-            // Ajouter une option par défaut
-            const defaultOption = document.createElement('option');
-            defaultOption.value = '';
-            defaultOption.textContent = 'Sélectionnez une machine';
-            machineSelect.appendChild(defaultOption);
+            // Ajouter une option vide
+            const emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = '-- Sélectionner une machine --';
+            machineSelect.appendChild(emptyOption);
             
-            // Ajouter les machines actives
             data.machines.forEach(machine => {
-                if (machine.is_active) {
-                    const option = document.createElement('option');
-                    option.value = machine.id;
-                    option.textContent = machine.name;
-                    machineSelect.appendChild(option);
+                const option = document.createElement('option');
+                option.value = machine.id;
+                option.textContent = machine.name;
+                if (machine.id === roomData.machine_id) {
+                    option.selected = true;
                 }
+                machineSelect.appendChild(option);
             });
+            
+            // Afficher le modal
+            modal.show();
         }
     })
     .catch(error => {
-        console.error('Error loading machines:', error);
-        showNotification('Erreur lors du chargement des machines', 'danger');
+        console.error('Error:', error);
+        showNotification('Erreur lors de la récupération des données', 'error');
     });
+}
 
-    // Réinitialiser le formulaire
-    const form = modal.querySelector('form');
-    if (form) form.reset();
+// Fonction pour mettre à jour une salle
+function updateRoom() {
+    const form = document.getElementById('editRoomForm');
+    const formData = {
+        id: form.querySelector('input[name="room_id"]').value,
+        name: document.getElementById('edit_room_name').value,
+        description: document.getElementById('edit_room_description').value,
+        machine_id: document.getElementById('edit_room_machine').value,
+        max_users: document.getElementById('edit_room_max_users').value,
+        is_active: document.getElementById('edit_room_active').checked ? 1 : 0
+    };
 
-    // Afficher le modal
-    const modalInstance = bootstrap.Modal.getInstance(modal);
-    modalInstance.show();
+    fetch('/api/admin/update_room.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(formData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            // Fermer le modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editRoomModal'));
+            modal.hide();
+            
+            // Rafraîchir la liste des salles
+            loadRooms();
+            
+            showNotification('Salle mise à jour avec succès', 'success');
+        } else {
+            throw new Error(data.error || 'Erreur lors de la mise à jour');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Erreur lors de la mise à jour de la salle', 'error');
+    });
 }
 
 // Fonction pour éditer une machine
 function editMachine(machineId) {
-    const row = document.querySelector(`tr[data-machine-id="${machineId}"]`);
-    if (!row) {
-        console.error('Machine row not found');
-        return;
-    }
-
-    const machineData = {
-        id: machineId,
-        name: row.querySelector('[data-field="name"]')?.textContent || '',
-        docker_image: row.querySelector('[data-field="docker_image"]')?.textContent || '',
-        is_active: row.querySelector('[data-field="is_active"]')?.getAttribute('data-active') === '1'
-    };
-
-    const modal = modals['editMachineModal'];
-    if (!modal) {
-        console.error('Edit machine modal not found');
-        return;
-    }
-
-    const form = document.getElementById('editMachineForm');
-    if (!form) {
-        console.error('Edit machine form not found');
-        return;
-    }
-
-    form.reset();
-    
-    // Remplir le formulaire
-    Object.keys(machineData).forEach(key => {
-        const input = form.querySelector(`[name="${key}"]`);
-        if (input) {
-            if (input.type === 'checkbox') {
-                input.checked = machineData[key];
-            } else {
-                input.value = machineData[key];
-            }
+    fetch(`/api/admin/get_machine.php?id=${machineId}`, {
+        headers: {
+            'Accept': 'application/json'
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
         }
-    });
-
-    // Gérer la soumission
-    form.onsubmit = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = {
-            id: machineId,
-            name: formData.get('name'),
-            docker_image: formData.get('docker_image'),
-            is_active: formData.get('is_active') === 'on'
-        };
-
-        try {
-            const response = await fetch('../api/admin/update_machine.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            const machine = data.machine;
             
-            if (result.success) {
-                showNotification('Machine mise à jour avec succès', 'success');
-                modal.hide();
-                loadMachines();
-            } else {
-                showNotification(result.error || 'Erreur lors de la mise à jour', 'danger');
-            }
-        } catch (error) {
-            console.error('Error updating machine:', error);
-            showNotification('Erreur lors de la mise à jour', 'danger');
+            // Remplir les champs du formulaire
+            document.getElementById('editMachineId').value = machine.id;
+            document.getElementById('editMachineName').value = machine.name;
+            document.getElementById('editMachineIP').value = machine.ip;
+            document.getElementById('editMachineCPU').value = machine.cpu_limit || 1;
+            document.getElementById('editMachineRAM').value = machine.ram_limit || 512;
+            document.getElementById('editMachineStatus').value = machine.status;
+            document.getElementById('editMachineActive').checked = machine.is_active === '1' || machine.is_active === 1 || machine.is_active === true;
+            
+            // Afficher le modal
+            const modal = new bootstrap.Modal(document.getElementById('editMachineModal'));
+            modal.show();
+        } else {
+            showNotification('Erreur lors de la récupération des données', 'error');
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Erreur lors de la récupération des données', 'error');
+    });
+}
+
+// Fonction pour mettre à jour une machine
+function updateMachine() {
+    const machineId = document.getElementById('editMachineId').value;
+    const machineName = document.getElementById('editMachineName').value;
+    const machineIP = document.getElementById('editMachineIP').value;
+    const machineCPU = document.getElementById('editMachineCPU').value;
+    const machineRAM = document.getElementById('editMachineRAM').value;
+    const machineStatus = document.getElementById('editMachineStatus').value;
+    const isActive = document.getElementById('editMachineActive').checked;
+
+    const data = {
+        id: machineId,
+        name: machineName,
+        ip: machineIP,
+        cpu_limit: machineCPU,
+        ram_limit: machineRAM,
+        status: machineStatus,
+        is_active: isActive
     };
 
-    modal.show();
+    fetch('/api/admin/update_machine.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showNotification('Machine mise à jour avec succès');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editMachineModal'));
+            modal.hide();
+            loadMachines();
+        } else {
+            showNotification(result.error || 'Erreur lors de la mise à jour', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Erreur lors de la mise à jour', 'error');
+    });
+}
+
+// Fonction pour ajouter une machine
+function addMachine() {
+    const machineName = document.getElementById('machineName').value;
+    const machineIP = document.getElementById('machineIP').value;
+    const machineCPU = document.getElementById('machineCPU').value;
+    const machineRAM = document.getElementById('machineRAM').value;
+    const machineStatus = document.getElementById('machineStatus').value;
+    const isActive = document.getElementById('machineActive').checked;
+
+    const data = {
+        name: machineName,
+        ip: machineIP,
+        cpu_limit: machineCPU,
+        ram_limit: machineRAM,
+        status: machineStatus,
+        is_active: isActive
+    };
+
+    fetch('/api/admin/add_machine.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showNotification('Machine ajoutée avec succès');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addMachineModal'));
+            modal.hide();
+            document.getElementById('addMachineForm').reset();
+            loadMachines();
+        } else {
+            showNotification(result.error || 'Erreur lors de l\'ajout', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Erreur lors de l\'ajout', 'error');
+    });
 }
 
 // Fonctions de gestion de la sécurité
 function loadBlockedIPs() {
-    fetch('/api/security/blocked_ips.php')
-        .then(response => response.json())
+    fetch('/api/admin/get_blocked_ips.php')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                const ipsTable = document.getElementById('blockedIPsTable');
-                if (!ipsTable) return;
+                const tbody = document.querySelector('#blockedIPsTable tbody');
+                if (!tbody) return;
                 
-                ipsTable.innerHTML = '';
-                const recentIPs = data.data.slice(0, 5); // Afficher seulement les 5 plus récents
+                tbody.innerHTML = '';
+                const blockedIps = Array.isArray(data.blocked_ips) ? data.blocked_ips : [];
                 
-                recentIPs.forEach(ip => {
+                blockedIps.forEach(ip => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${ip.ip_address}</td>
-                        <td>${new Date(ip.blocked_until).toLocaleString()}</td>
-                        <td>${ip.reason}</td>
+                        <td>
+                            <i class="bi bi-laptop me-2"></i>
+                            ${ip.ip_address}
+                        </td>
+                        <td>
+                            <i class="bi bi-calendar-event me-1"></i>
+                            ${ip.blocked_at}
+                        </td>
+                        <td>
+                            <button class="btn btn-hack btn-success btn-sm" 
+                                    onclick="unblockIp('${ip.ip_address}')"
+                                    title="Débloquer cette IP">
+                                <i class="bi bi-unlock"></i>
+                            </button>
+                        </td>
                     `;
-                    ipsTable.appendChild(row);
+                    tbody.appendChild(row);
                 });
             }
         })
         .catch(error => {
             console.error('Erreur lors du chargement des IPs bloquées:', error);
+            showNotification('Erreur lors du chargement des IPs bloquées', 'error');
         });
 }
 
 function loadSecurityEvents() {
-    fetch('/api/security/logs.php')
-        .then(response => response.json())
+    fetch('/api/admin/get_security_events.php')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
-                const logsTable = document.getElementById('securityLogsTable');
-                if (!logsTable) return;
+                const tbody = document.querySelector('#securityEventsTable tbody');
+                if (!tbody) return;
                 
-                logsTable.innerHTML = '';
-                const recentLogs = data.data.slice(0, 5); // Afficher seulement les 5 plus récents
+                tbody.innerHTML = '';
+                const events = Array.isArray(data.events) ? data.events : [];
                 
-                recentLogs.forEach(log => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${new Date(log.created_at).toLocaleString()}</td>
-                        <td>${log.event}</td>
-                        <td>${log.details}</td>
+                events.forEach(event => {
+                    const statusClass = event.success ? 'success' : 'danger';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>
+                                <i class="bi bi-person me-1"></i>
+                                ${event.username}
+                            </td>
+                            <td>
+                                <i class="bi bi-laptop me-1"></i>
+                                ${event.ip_address}
+                            </td>
+                            <td>
+                                <i class="bi bi-calendar-event me-1"></i>
+                                ${event.attempt_time}
+                            </td>
+                            <td>
+                                <span class="badge ${event.success ? 'bg-success' : 'bg-danger'}">
+                                    <i class="bi ${event.success ? 'bi-check-circle' : 'bi-x-circle'} me-1"></i>
+                                    ${event.success ? 'Succès' : 'Échec'}
+                                </span>
+                            </td>
+                        </tr>
                     `;
-                    logsTable.appendChild(row);
                 });
             }
         })
         .catch(error => {
             console.error('Erreur lors du chargement des événements:', error);
+            showNotification('Erreur lors du chargement des événements', 'error');
         });
 }
 
-// Initialisation des fonctionnalités
-document.addEventListener('DOMContentLoaded', function() {
-    initializeModals();
-    initializeTables();
-    loadDashboardData();
-    setupEventListeners();
-    
-    // Rafraîchissement périodique des données
-    setInterval(loadDashboardData, 30000);
-    setInterval(refreshTables, 30000);
-});
+// Fonction pour supprimer un utilisateur
+function deleteUser(userId) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+        fetch('/api/admin/delete_user.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: userId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Utilisateur supprimé avec succès', 'success');
+                loadUsers();
+            } else {
+                throw new Error(data.error || 'Erreur lors de la suppression');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting user:', error);
+            showNotification('Erreur lors de la suppression de l\'utilisateur', 'danger');
+        });
+    }
+}
+
+// Fonction pour supprimer une salle
+function deleteRoom(roomId) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette salle ?')) {
+        fetch('/api/admin/delete_room.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: roomId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Salle supprimée avec succès', 'success');
+                loadRooms();
+            } else {
+                throw new Error(data.error || 'Erreur lors de la suppression');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting room:', error);
+            showNotification('Erreur lors de la suppression de la salle', 'danger');
+        });
+    }
+}
+
+// Fonction pour supprimer une machine
+function deleteMachine(machineId) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette machine ?')) {
+        fetch('/api/admin/delete_machine.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: machineId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Machine supprimée avec succès', 'success');
+                loadMachines();
+            } else {
+                throw new Error(data.error || 'Erreur lors de la suppression');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting machine:', error);
+            showNotification('Erreur lors de la suppression de la machine', 'danger');
+        });
+    }
+}
 
 // Fonction pour bloquer une IP
 function blockIP(ip = null) {
-    const ipAddress = ip || document.getElementById('ipAddress').value;
+    if (ip) {
+        // Si une IP est fournie, ouvrir la modale avec l'IP pré-remplie
+        const modal = new bootstrap.Modal(document.getElementById('blockIPModal'));
+        document.getElementById('ipAddress').value = ip;
+        modal.show();
+        return;
+    }
+
+    // Récupérer les valeurs du formulaire
+    const ipAddress = document.getElementById('ipAddress').value;
     const duration = document.getElementById('blockDuration').value;
     const reason = document.getElementById('blockReason').value;
 
@@ -1146,14 +1228,15 @@ function blockIP(ip = null) {
         return;
     }
 
-    fetch('/api/security/blocked_ips.php', {
+    fetch('/api/admin/ip_management.php', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            ip_address: ipAddress,
-            duration: parseInt(duration),
+            action: 'block',
+            ip: ipAddress,
+            duration: duration,
             reason: reason
         })
     })
@@ -1161,15 +1244,15 @@ function blockIP(ip = null) {
     .then(data => {
         if (data.success) {
             showNotification('IP bloquée avec succès', 'success');
-            $('#blockIPModal').modal('hide');
-            loadBlockedIPs();
-            loadSecurityEvents();
+            bootstrap.Modal.getInstance(document.getElementById('blockIPModal')).hide();
+            loadBlockedIPs(); // Recharger la liste des IPs bloquées
         } else {
-            showNotification(data.error || 'Erreur lors du blocage de l\'IP', 'danger');
+            showNotification(data.message || 'Erreur lors du blocage de l\'IP', 'error');
         }
     })
     .catch(error => {
-        showNotification('Erreur lors du blocage de l\'IP', 'danger');
+        console.error('Erreur:', error);
+        showNotification('Erreur lors du blocage de l\'IP', 'error');
     });
 }
 
@@ -1179,13 +1262,13 @@ function unblockIP(ip) {
         return;
     }
 
-    fetch('/api/security/blocked_ips.php', {
+    fetch('/api/admin/ip_management.php', {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            ip_address: ip
+            ip: ip
         })
     })
     .then(response => response.json())
@@ -1195,11 +1278,12 @@ function unblockIP(ip) {
             loadBlockedIPs();
             loadSecurityEvents();
         } else {
-            showNotification(data.error || 'Erreur lors du déblocage de l\'IP', 'danger');
+            showNotification(data.message || 'Erreur lors du déblocage de l\'IP', 'error');
         }
     })
     .catch(error => {
-        showNotification('Erreur lors du déblocage de l\'IP', 'danger');
+        console.error('Erreur:', error);
+        showNotification('Erreur lors du déblocage de l\'IP', 'error');
     });
 }
 
@@ -1242,86 +1326,86 @@ function createToastContainer() {
     return container;
 }
 
-// Fonction pour supprimer un utilisateur
-function deleteUser(userId) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-        fetch('../api/admin/delete_user.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ id: userId })
+// Fonction pour basculer le statut d'un utilisateur
+function toggleUserStatus(userId, isActive) {
+    fetch('/api/admin/update_user_status.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+            id: userId,
+            is_active: isActive
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showNotification('Utilisateur supprimé avec succès', 'success');
-                loadUsers();
-            } else {
-                throw new Error(data.error || 'Erreur lors de la suppression');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting user:', error);
-            showNotification('Erreur lors de la suppression de l\'utilisateur', 'danger');
-        });
-    }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Statut de l\'utilisateur mis à jour');
+        } else {
+            showNotification(data.message || 'Erreur lors de la mise à jour du statut', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Erreur lors de la mise à jour du statut', 'error');
+    });
 }
 
-// Fonction pour supprimer une salle
-function deleteRoom(roomId) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette salle ?')) {
-        fetch('../api/admin/delete_room.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ id: roomId })
+// Fonction pour basculer le statut d'une salle
+function toggleRoomStatus(roomId, isActive) {
+    fetch('/api/admin/update_room_status.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+            id: roomId,
+            is_active: isActive
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showNotification('Salle supprimée avec succès', 'success');
-                loadRooms();
-            } else {
-                throw new Error(data.error || 'Erreur lors de la suppression');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting room:', error);
-            showNotification('Erreur lors de la suppression de la salle', 'danger');
-        });
-    }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Statut de la salle mis à jour');
+        } else {
+            showNotification(data.message || 'Erreur lors de la mise à jour du statut', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Erreur lors de la mise à jour du statut', 'error');
+    });
 }
 
-// Fonction pour supprimer une machine
-function deleteMachine(machineId) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette machine ?')) {
-        fetch('../api/admin/delete_machine.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ id: machineId })
+// Fonction pour basculer le statut d'une machine
+function toggleMachineStatus(machineId, isActive) {
+    fetch('/api/admin/update_machine_status.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+            id: machineId,
+            is_active: isActive
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showNotification('Machine supprimée avec succès', 'success');
-                loadMachines();
-            } else {
-                throw new Error(data.error || 'Erreur lors de la suppression');
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting machine:', error);
-            showNotification('Erreur lors de la suppression de la machine', 'danger');
-        });
-    }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Statut de la machine mis à jour');
+        } else {
+            showNotification(data.message || 'Erreur lors de la mise à jour du statut', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Erreur lors de la mise à jour du statut', 'error');
+    });
 }
